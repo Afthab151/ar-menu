@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AR Menu — Scan to See Your Dish</title>
+
+  <!-- A-Frame -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
+
+  <!-- AR.js for A-Frame (marker based) -->
+  <script src="https://cdn.jsdelivr.net/npm/ar.js@2.2.2/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    /* Loading screen */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #0a0a0a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      gap: 16px;
+    }
+
+    #loading.hidden { display: none; }
+
+    .loader-logo {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      color: #fff;
+    }
+
+    .loader-logo span { color: #f97316; }
+
+    .loader-sub {
+      font-size: 13px;
+      color: #666;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #222;
+      border-top-color: #f97316;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-top: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* UI overlay on top of AR camera */
+    #ui-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 20px 36px;
+    }
+
+    /* Top bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: all;
+    }
+
+    .brand {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #fff;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+    }
+
+    .brand span { color: #f97316; }
+
+    .scan-badge {
+      background: rgba(249,115,22,0.15);
+      border: 1px solid rgba(249,115,22,0.4);
+      color: #f97316;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      backdrop-filter: blur(8px);
+    }
+
+    /* Center scanning frame */
+    .scan-frame-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .scan-frame {
+      width: 220px;
+      height: 220px;
+      position: relative;
+    }
+
+    .scan-frame::before,
+    .scan-frame::after,
+    .scan-frame .corner-br,
+    .scan-frame .corner-bl {
+      content: '';
+      position: absolute;
+      width: 36px;
+      height: 36px;
+      border-color: #f97316;
+      border-style: solid;
+      opacity: 0.9;
+    }
+
+    .scan-frame::before {
+      top: 0; left: 0;
+      border-width: 3px 0 0 3px;
+      border-radius: 4px 0 0 0;
+    }
+
+    .scan-frame::after {
+      top: 0; right: 0;
+      border-width: 3px 3px 0 0;
+      border-radius: 0 4px 0 0;
+    }
+
+    .scan-frame .corner-br {
+      bottom: 0; right: 0;
+      border-width: 0 3px 3px 0;
+      border-radius: 0 0 4px 0;
+    }
+
+    .scan-frame .corner-bl {
+      bottom: 0; left: 0;
+      border-width: 0 0 3px 3px;
+      border-radius: 0 0 0 4px;
+    }
+
+    .scan-line {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #f97316, transparent);
+      animation: scan-move 2s ease-in-out infinite;
+      border-radius: 1px;
+    }
+
+    @keyframes scan-move {
+      0% { top: 8px; opacity: 1; }
+      50% { top: calc(100% - 8px); opacity: 0.6; }
+      100% { top: 8px; opacity: 1; }
+    }
+
+    .scan-hint {
+      font-size: 14px;
+      color: rgba(255,255,255,0.75);
+      text-align: center;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+      letter-spacing: 0.02em;
+      line-height: 1.5;
+    }
+
+    .scan-hint strong {
+      color: #f97316;
+      font-weight: 700;
+    }
+
+    /* Dish info card — shown when model is detected */
+    #dish-card {
+      pointer-events: all;
+      background: rgba(10,10,10,0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(249,115,22,0.25);
+      border-radius: 20px;
+      padding: 18px 20px;
+      display: none;
+      animation: slide-up 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+
+    #dish-card.visible { display: block; }
+
+    @keyframes slide-up {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .dish-name {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .dish-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .dish-price {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f97316;
+    }
+
+    .dish-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-nonveg {
+      background: rgba(220,38,38,0.15);
+      border: 1px solid rgba(220,38,38,0.4);
+      color: #f87171;
+    }
+
+    .badge-veg {
+      background: rgba(34,197,94,0.15);
+      border: 1px solid rgba(34,197,94,0.4);
+      color: #4ade80;
+    }
+
+    .veg-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .dot-red { background: #ef4444; }
+    .dot-green { background: #22c55e; }
+
+    .dish-desc {
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+
+    .dish-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .dish-tag {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    .spice-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .spice-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .chilli {
+      font-size: 14px;
+      opacity: 0.3;
+    }
+
+    .chilli.active { opacity: 1; }
+
+    /* Bottom instruction */
+    .bottom-hint {
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Demo mode — when no camera / testing on desktop */
+    #demo-notice {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(249,115,22,0.1);
+      border: 1px solid rgba(249,115,22,0.3);
+      color: #f97316;
+      font-size: 12px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      z-index: 200;
+      white-space: nowrap;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Loading screen -->
+  <div id="loading">
+    <div class="loader-logo">AR<span>Menu</span></div>
+    <div class="loader-sub">Loading AR experience</div>
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Demo notice for desktop testing -->
+  <div id="demo-notice">Demo mode — open on phone and scan QR to see AR</div>
+
+  <!-- UI Overlay -->
+  <div id="ui-overlay">
+
+    <!-- Top bar -->
+    <div class="top-bar">
+      <div class="brand">AR<span>Menu</span></div>
+      <div class="scan-badge">Live AR</div>
+    </div>
+
+    <!-- Center scan frame -->
+    <div class="scan-frame-wrap">
+      <div class="scan-frame">
+        <div class="corner-br"></div>
+        <div class="corner-bl"></div>
+        <div class="scan-line"></div>
+      </div>
+      <div class="scan-hint">
+        Point camera at the <strong>QR code</strong><br>on your menu card
+      </div>
+    </div>
+
+    <!-- Dish info card -->
+    <div id="dish-card">
+      <div class="dish-name">Chicken Biryani</div>
+      <div class="dish-meta">
+        <div class="dish-price">₹280</div>
+        <div class="dish-badge badge-nonveg">
+          <div class="veg-dot dot-red"></div>
+          Non-veg
+        </div>
+      </div>
+      <div class="dish-desc">
+        Aromatic basmati rice slow-cooked with tender chicken, whole spices,
+        caramelised onions and fresh mint. Served with raita.
+      </div>
+      <div class="dish-tags">
+        <div class="dish-tag">Approx 450g</div>
+        <div class="dish-tag">Serves 1</div>
+        <div class="dish-tag">Rice · Chicken · Spices</div>
+      </div>
+      <div class="spice-row">
+        <div class="spice-label">Spice</div>
+        <span class="chilli active">🌶</span>
+        <span class="chilli active">🌶</span>
+        <span class="chilli active">🌶</span>
+        <span class="chilli">🌶</span>
+        <span class="chilli">🌶</span>
+      </div>
+    </div>
+
+    <div class="bottom-hint">Move slowly around the dish</div>
+
+  </div>
+
+  <!--
+    ============================================================
+    AR SCENE
+    ============================================================
+    AR.js uses "hiro" as the default marker pattern.
+    Print the Hiro marker from:
+    https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png
+    Tape it on your menu card. When camera sees it, biryani appears.
+
+    IMPORTANT: Replace the src below with your actual .glb URL
+    from Supabase or GitHub after uploading your TRELLIS model.
+    ============================================================
+  -->
+  <a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+    renderer="logarithmicDepthBuffer: true; antialias: true;"
+    vr-mode-ui="enabled: false"
+    loading-screen="enabled: false"
+  >
+
+    <!-- Asset loader — put your .glb URL here -->
+    <a-assets>
+      <a-asset-item
+        id="food-model"
+        src="biryani.glb"
+      ></a-asset-item>
+    </a-assets>
+
+    <!-- Hiro marker — the QR/marker that triggers the model -->
+    <a-marker
+      preset="hiro"
+      id="marker"
+    >
+      <!--
+        The 3D food model.
+        position="0 0.05 0" lifts it slightly above the marker surface
+        scale="0.5 0.5 0.5" — adjust this to make dish bigger or smaller
+        rotation="-90 0 0" — most .glb files need this rotation correction
+      -->
+      <a-entity
+        id="food-entity"
+        gltf-model="#food-model"
+        position="0 0.05 0"
+        scale="0.5 0.5 0.5"
+        rotation="-90 0 0"
+        animation="property: rotation; to: -90 360 0; loop: true; dur: 12000; easing: linear"
+      ></a-entity>
+
+      <!-- Subtle platform shadow ring under the dish -->
+      <a-circle
+        color="#f97316"
+        opacity="0.08"
+        radius="0.6"
+        rotation="-90 0 0"
+        position="0 0.01 0"
+      ></a-circle>
+
+      <!-- Glowing ring -->
+      <a-ring
+        color="#f97316"
+        radius-inner="0.58"
+        radius-outer="0.62"
+        opacity="0.3"
+        rotation="-90 0 0"
+        position="0 0.01 0"
+        animation="property: opacity; from: 0.3; to: 0.8; loop: true; dur: 1500; direction: alternate; easing: easeInOutSine"
+      ></a-ring>
+
+    </a-marker>
+
+    <!-- Camera -->
+    <a-entity camera></a-entity>
+
+  </a-scene>
+
+  <script>
+    const loading = document.getElementById('loading')
+    const dishCard = document.getElementById('dish-card')
+    const demoNotice = document.getElementById('demo-notice')
+    const marker = document.getElementById('marker')
+
+    // Hide loading after A-Frame initialises
+    document.querySelector('a-scene').addEventListener('loaded', () => {
+      setTimeout(() => loading.classList.add('hidden'), 800)
+    })
+
+    // Show dish info card when marker is found
+    marker.addEventListener('markerFound', () => {
+      dishCard.classList.add('visible')
+    })
+
+    // Hide dish info card when marker is lost
+    marker.addEventListener('markerLost', () => {
+      dishCard.classList.remove('visible')
+    })
+
+    // Desktop detection — show demo notice
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (!isMobile) {
+      demoNotice.style.display = 'block'
+    }
+
+    // If no GLB is set yet, log a helpful message
+    const modelSrc = document.getElementById('food-model').getAttribute('src')
+    if (modelSrc === 'biryani.glb') {
+      console.warn('AR Menu: Replace biryani.glb with your actual .glb file URL')
+    }
+  </script>
+
+</body>
+</html>

@@ -5,310 +5,134 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>AR Menu</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ar.js@2.2.2/aframe/build/aframe-ar.js"></script>
+  <!-- A-Frame 1.2.0 + AR.js latest — compatible versions -->
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #000;
-      overflow: hidden;
-    }
+    body { font-family: 'Segoe UI', sans-serif; background: #000; overflow: hidden; }
 
     #loading {
-      position: fixed;
-      inset: 0;
-      background: #0a0a0a;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      gap: 16px;
-      transition: opacity 0.5s;
+      position: fixed; inset: 0; background: #0a0a0a;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; z-index: 9999; gap: 16px; transition: opacity 0.5s;
     }
-
-    #loading.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .loader-logo {
-      font-size: 42px;
-      font-weight: 800;
-      color: #fff;
-      letter-spacing: -2px;
-    }
-
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    .loader-logo { font-size: 42px; font-weight: 800; color: #fff; letter-spacing: -2px; }
     .loader-logo span { color: #f97316; }
-
-    .loader-sub {
-      font-size: 12px;
-      color: #555;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
+    .loader-sub { font-size: 12px; color: #555; letter-spacing: 0.1em; text-transform: uppercase; }
     .spinner {
-      width: 32px;
-      height: 32px;
-      border: 3px solid #222;
-      border-top-color: #f97316;
-      border-radius: 50%;
+      width: 32px; height: 32px; border: 3px solid #222;
+      border-top-color: #f97316; border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
     #ui {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 100;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+      position: fixed; inset: 0; pointer-events: none; z-index: 100;
+      display: flex; flex-direction: column; justify-content: space-between;
       padding: 28px 20px 40px;
     }
 
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .brand {
-      font-size: 22px;
-      font-weight: 800;
-      color: #fff;
-      text-shadow: 0 2px 12px rgba(0,0,0,0.9);
-      letter-spacing: -0.5px;
-    }
-
+    .top-bar { display: flex; justify-content: space-between; align-items: center; }
+    .brand { font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,0.9); letter-spacing: -0.5px; }
     .brand span { color: #f97316; }
 
     .live-dot {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(0,0,0,0.5);
-      border: 1px solid rgba(249,115,22,0.35);
-      padding: 5px 12px;
-      border-radius: 20px;
-      backdrop-filter: blur(8px);
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(249,115,22,0.35);
+      padding: 5px 12px; border-radius: 20px;
     }
-
     .live-dot-circle {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #f97316;
+      width: 7px; height: 7px; border-radius: 50%; background: #f97316;
       animation: pulse 1.5s ease-in-out infinite;
     }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    .live-dot span { font-size: 11px; color: #f97316; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+    .middle { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+
+    .frame { width: 200px; height: 200px; position: relative; }
+    .frame::before, .frame::after, .frame .c3, .frame .c4 {
+      content: ''; position: absolute; width: 32px; height: 32px;
+      border-color: #f97316; border-style: solid;
     }
-
-    .live-dot span {
-      font-size: 11px;
-      color: #f97316;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .middle {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .frame {
-      width: 200px;
-      height: 200px;
-      position: relative;
-    }
-
-    .frame::before, .frame::after,
-    .frame .c3, .frame .c4 {
-      content: '';
-      position: absolute;
-      width: 32px;
-      height: 32px;
-      border-color: #f97316;
-      border-style: solid;
-    }
-
     .frame::before { top:0; left:0; border-width: 3px 0 0 3px; border-radius: 3px 0 0 0; }
     .frame::after  { top:0; right:0; border-width: 3px 3px 0 0; border-radius: 0 3px 0 0; }
     .frame .c3     { bottom:0; right:0; border-width: 0 3px 3px 0; border-radius: 0 0 3px 0; }
     .frame .c4     { bottom:0; left:0; border-width: 0 0 3px 3px; border-radius: 0 0 0 3px; }
 
     .scanline {
-      position: absolute;
-      left: 6px; right: 6px;
-      height: 2px;
+      position: absolute; left: 6px; right: 6px; height: 2px;
       background: linear-gradient(90deg, transparent, #f97316, transparent);
       animation: scanmove 2s ease-in-out infinite;
     }
-
     @keyframes scanmove {
       0%   { top: 8px; opacity: 0.9; }
       50%  { top: 188px; opacity: 0.5; }
       100% { top: 8px; opacity: 0.9; }
     }
 
-    .hint {
-      font-size: 14px;
-      color: rgba(255,255,255,0.75);
-      text-align: center;
-      text-shadow: 0 2px 10px rgba(0,0,0,1);
-      line-height: 1.6;
-    }
-
+    .hint { font-size: 14px; color: rgba(255,255,255,0.75); text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,1); line-height: 1.6; }
     .hint strong { color: #f97316; }
 
-    /* Dish card */
     #dish-card {
       pointer-events: all;
       background: rgba(8,8,8,0.88);
-      backdrop-filter: blur(20px);
       border: 1px solid rgba(249,115,22,0.2);
-      border-radius: 20px;
-      padding: 18px 20px 16px;
-      display: none;
+      border-radius: 20px; padding: 18px 20px 16px; display: none;
       animation: slideup 0.35s cubic-bezier(0.34,1.56,0.64,1);
     }
-
     #dish-card.show { display: block; }
-
     @keyframes slideup {
       from { transform: translateY(24px); opacity: 0; }
       to   { transform: translateY(0); opacity: 1; }
     }
 
-    .dish-name {
-      font-size: 20px;
-      font-weight: 800;
-      color: #fff;
-      margin-bottom: 4px;
-      letter-spacing: -0.3px;
-    }
-
-    .dish-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .dish-price {
-      font-size: 18px;
-      font-weight: 700;
-      color: #f97316;
-    }
-
+    .dish-name { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+    .dish-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .dish-price { font-size: 18px; font-weight: 700; color: #f97316; }
     .nvbadge {
-      font-size: 11px;
-      font-weight: 600;
-      padding: 3px 9px;
-      border-radius: 20px;
-      background: rgba(239,68,68,0.12);
-      border: 1px solid rgba(239,68,68,0.35);
-      color: #f87171;
-      display: flex;
-      align-items: center;
-      gap: 5px;
+      font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px;
+      background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35);
+      color: #f87171; display: flex; align-items: center; gap: 5px;
     }
-
-    .nvdot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: #ef4444;
-    }
-
-    .dish-desc {
-      font-size: 12px;
-      color: rgba(255,255,255,0.5);
-      line-height: 1.6;
-      margin-bottom: 12px;
-    }
-
-    .tags {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-    }
-
+    .nvdot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; }
+    .dish-desc { font-size: 12px; color: rgba(255,255,255,0.5); line-height: 1.6; margin-bottom: 12px; }
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
     .tag {
-      font-size: 11px;
-      color: rgba(255,255,255,0.45);
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 3px 10px;
-      border-radius: 20px;
+      font-size: 11px; color: rgba(255,255,255,0.45);
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+      padding: 3px 10px; border-radius: 20px;
     }
-
-    .spice {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .spice-label {
-      font-size: 11px;
-      color: rgba(255,255,255,0.35);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-right: 2px;
-    }
-
+    .spice { display: flex; align-items: center; gap: 5px; }
+    .spice-label { font-size: 11px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 2px; }
     .ch { font-size: 13px; opacity: 0.2; }
     .ch.on { opacity: 1; }
-
-    .footer-hint {
-      text-align: center;
-      font-size: 11px;
-      color: rgba(255,255,255,0.25);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
+    .footer-hint { text-align: center; font-size: 11px; color: rgba(255,255,255,0.25); letter-spacing: 0.05em; text-transform: uppercase; }
   </style>
 </head>
 <body>
 
-<!-- Loading -->
 <div id="loading">
   <div class="loader-logo">AR<span>Menu</span></div>
   <div class="loader-sub">Starting camera</div>
   <div class="spinner"></div>
 </div>
 
-<!-- UI -->
 <div id="ui">
   <div class="top-bar">
     <div class="brand">AR<span>Menu</span></div>
-    <div class="live-dot">
-      <div class="live-dot-circle"></div>
-      <span>Live</span>
-    </div>
+    <div class="live-dot"><div class="live-dot-circle"></div><span>Live</span></div>
   </div>
 
   <div class="middle">
     <div class="frame">
-      <div class="c3"></div>
-      <div class="c4"></div>
+      <div class="c3"></div><div class="c4"></div>
       <div class="scanline"></div>
     </div>
-    <div class="hint">
-      Point at the <strong>marker</strong> on your<br>menu card to see the dish in 3D
-    </div>
+    <div class="hint">Point at the <strong>Hiro marker</strong> on your<br>menu card to see the dish in 3D</div>
   </div>
 
   <div id="dish-card">
@@ -317,10 +141,7 @@
       <div class="dish-price">₹280</div>
       <div class="nvbadge"><div class="nvdot"></div>Non-veg</div>
     </div>
-    <div class="dish-desc">
-      Aromatic basmati rice slow-cooked with tender chicken, whole spices,
-      caramelised onions and fresh mint. Served with raita.
-    </div>
+    <div class="dish-desc">Aromatic basmati rice slow-cooked with tender chicken, whole spices, caramelised onions and fresh mint. Served with raita.</div>
     <div class="tags">
       <div class="tag">Approx 450g</div>
       <div class="tag">Serves 1</div>
@@ -328,41 +149,30 @@
     </div>
     <div class="spice">
       <div class="spice-label">Spice</div>
-      <span class="ch on">🌶</span>
-      <span class="ch on">🌶</span>
-      <span class="ch on">🌶</span>
-      <span class="ch">🌶</span>
-      <span class="ch">🌶</span>
+      <span class="ch on">🌶</span><span class="ch on">🌶</span><span class="ch on">🌶</span>
+      <span class="ch">🌶</span><span class="ch">🌶</span>
     </div>
   </div>
 
   <div class="footer-hint">Keep marker fully visible in frame</div>
 </div>
 
-<!--
-  AR SCENE
-  Using matrixCodeType 3x3 barcode marker — value 0
-  Print your marker from:
-  https://au.gmented.com/app/marker/marker.php?genImage=1&value=0&type=3x3
+<!-- 
+  MARKER to print or display on screen:
+  https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png
 -->
 <a-scene
   embedded
-  arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-  renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true;"
+  arjs="sourceType: webcam; debugUIEnabled: false;"
   vr-mode-ui="enabled: false"
   loading-screen="enabled: false"
+  renderer="antialias: true; alpha: true;"
 >
-
   <a-assets>
     <a-asset-item id="food-model" src="biryani.glb"></a-asset-item>
   </a-assets>
 
-  <!-- Barcode marker value=0 -->
-  <a-marker
-    type="barcode"
-    value="0"
-    id="marker"
-  >
+  <a-marker preset="hiro" id="marker">
     <a-entity
       gltf-model="#food-model"
       position="0 0.05 0"
@@ -370,24 +180,7 @@
       rotation="-90 0 0"
       animation="property: rotation; to: -90 360 0; loop: true; dur: 12000; easing: linear"
     ></a-entity>
-
-    <a-circle
-      color="#f97316"
-      opacity="0.07"
-      radius="0.55"
-      rotation="-90 0 0"
-      position="0 0.005 0"
-    ></a-circle>
-
-    <a-ring
-      color="#f97316"
-      radius-inner="0.53"
-      radius-outer="0.57"
-      opacity="0.25"
-      rotation="-90 0 0"
-      position="0 0.005 0"
-      animation="property: opacity; from: 0.25; to: 0.7; loop: true; dur: 1400; direction: alternate; easing: easeInOutSine"
-    ></a-ring>
+    <a-circle color="#f97316" opacity="0.07" radius="0.55" rotation="-90 0 0" position="0 0.005 0"></a-circle>
   </a-marker>
 
   <a-entity camera></a-entity>
@@ -399,10 +192,7 @@
   const card    = document.getElementById('dish-card')
   const marker  = document.getElementById('marker')
 
-  scene.addEventListener('loaded', () => {
-    setTimeout(() => loading.classList.add('hidden'), 900)
-  })
-
+  scene.addEventListener('loaded', () => setTimeout(() => loading.classList.add('hidden'), 900))
   marker.addEventListener('markerFound', () => card.classList.add('show'))
   marker.addEventListener('markerLost',  () => card.classList.remove('show'))
 </script>
